@@ -8,6 +8,7 @@ import (
 
 	"github.com/algorinfo/rawstore/pkg/brain"
 	"github.com/algorinfo/rawstore/pkg/store"
+	"github.com/algorinfo/rawstore/pkg/volume"
 )
 
 // Env get a environment variable adding a defaultValue
@@ -29,9 +30,11 @@ func main() {
 
 	// commands
 	brainCmd := flag.NewFlagSet("brain", flag.ExitOnError)
+	volumeCmd := flag.NewFlagSet("volume", flag.ExitOnError)
 
 	// Params
 	listen := brainCmd.String("listen", ":6665", "Address to listen")
+	listenV := volumeCmd.String("listen", ":6667", "Address to listen")
 
 	flag.Parse()
 	if len(os.Args) < 2 {
@@ -55,8 +58,22 @@ func main() {
 			),
 		)
 		brain.Run()
+
+	case "volume":
+		err := volumeCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Fatal("Error parsing args")
+		}
+
+		// store.UseDB()
+		vol := volume.New(
+			volume.WithAddr(*listenV),
+		)
+
+		vol.Run()
+
 	default:
-		fmt.Printf("Please use 'web' command")
+		fmt.Printf("Please use 'web' or 'volume' command")
 	}
 
 }
