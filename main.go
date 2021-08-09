@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/algorinfo/rawstore/pkg/brain"
 	"github.com/algorinfo/rawstore/pkg/store"
@@ -21,8 +22,10 @@ func Env(key, defaultValue string) string {
 }
 
 var (
-	rateLimit = Env("RATE_LIMIT", "10")
-	redisAddr = Env("REDIS", "localhost:6379")
+	rateLimit  = Env("RATE_LIMIT", "100")
+	redisAddr  = Env("REDIS", "localhost:6379")
+	listenAddr = Env("LISTEN_ADDR", ":6667")
+	nsDir      = Env("NS_DIR", "data/")
 )
 
 func main() {
@@ -65,9 +68,16 @@ func main() {
 			log.Fatal("Error parsing args")
 		}
 
+		rt, _ := strconv.Atoi(rateLimit)
+
+		cfg := volume.DefaultConfig()
+		cfg.Addr = *listenV
+		cfg.RateLimit = rt
+		cfg.NSDir = nsDir
+
 		// store.UseDB()
 		vol := volume.New(
-			volume.WithAddr(*listenV),
+			volume.WithConfig(cfg),
 		)
 
 		vol.Run()

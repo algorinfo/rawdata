@@ -1,16 +1,22 @@
 package volume
 
 import (
+	"bytes"
+	"compress/zlib"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
 	"github.com/algorinfo/rawstore/pkg/jump"
+	"github.com/algorinfo/rawstore/pkg/store"
 	"github.com/cespare/xxhash"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -42,15 +48,20 @@ func JumpHash(key string, b int) int32 {
 	return bucket
 }
 
+type Config struct {
+	Addr      string
+	RateLimit int
+	NSDir     string
+}
+
 // WebApp Main web app
 type WebApp struct {
-	addr      string
-	r         *chi.Mux
-	render    *render.Render
-	rateLimit int
+	r      *chi.Mux
+	render *render.Render
 	// redis      *store.Redis
 	dbs        map[string]*sqlx.DB
 	namespaces []string
+	cfg        *Config
 }
 
 // Run main runner
@@ -59,16 +70,26 @@ func (wa *WebApp) Run() {
 	wa.r.Use(middleware.RealIP)
 	wa.r.Use(middleware.Recoverer)
 	wa.r.Use(middleware.Logger)
-	wa.r.Use(httprate.LimitByIP(wa.rateLimit, 1*time.Minute))
+	wa.r.Use(httprate.LimitByIP(wa.cfg.RateLimit, 1*time.Minute))
 	wa.r.Get("/status", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("welcome"))
 	})
+	wa.r.Route("/v1", func(r chi.Router) {
+		r.Get("/namespace", wa.AllNS)
+		r.Get("/namespace/{ns}/_backup", wa.NSBackup)
+		r.Post("/namespace", wa.CreateNS)
+	})
+
+	workDir, _ := os.Getwd()
+	filesDir := http.Dir(filepath.Join(workDir, wa.cfg.NSDir))
+	FileServer(wa.r, "/files", filesDir)
+
 	wa.r.Put("/{ns}/{data}", wa.PutData)
 	wa.r.Get("/{ns}/{data}", wa.GetOneData)
 	wa.r.Delete("/{ns}/{data}", wa.DelOneData)
 	wa.r.Get("/{ns}/", wa.GetAllData)
-	log.Println("Running web mode on: ", wa.addr)
-	http.ListenAndServe(wa.addr, wa.r)
+	log.Println("Running web mode on: ", wa.cfg.Addr)
+	http.ListenAndServe(wa.cfg.Addr, wa.r)
 }
 
 type Data struct {
@@ -79,9 +100,56 @@ type Data struct {
 	CreatedAt string         `db:"created_at"`
 }
 
-func (wa *WebApp) InsertData(ctx context.Context, key, ns string, data []byte) {
+type Namespace struct {
+	Name string `json:"name"`
+}
+
+func (wa *WebApp) NSBackup(w http.ResponseWriter, r *http.Request) {
+	ns := chi.URLParam(r, "ns")
+	fullSrc := fmt.Sprintf("%s%s.db", wa.cfg.NSDir, ns)
+	fullDst := fmt.Sprintf("%s%s.backup.db", wa.cfg.NSDir, ns)
+	store.Backup(fullSrc, fullDst)
+
+	wa.render.JSON(w, http.StatusOK, map[string]string{"ok": "done"})
+
+}
+
+func (wa *WebApp) CreateNS(w http.ResponseWriter, r *http.Request) {
+	b, err := ioutil.ReadAll(r.Body)
+	defer r.Body.Close()
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	var ns Namespace
+	err = json.Unmarshal(b, &ns)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	if _, ok := wa.dbs[ns.Name]; ok {
+		wa.render.JSON(w, http.StatusOK, &wa.namespaces)
+		return
+	}
+	CreateNS(wa, ns.Name)
+
+	wa.render.JSON(w, http.StatusCreated, &wa.namespaces)
+
+}
+
+func (wa *WebApp) AllNS(w http.ResponseWriter, r *http.Request) {
+
+	wa.render.JSON(w, http.StatusOK, &wa.namespaces)
+}
+
+func (wa *WebApp) InsertData(ctx context.Context, key, ns string, data []byte) error {
 	// wa.dbs[ns].Exec("INSERT INTO data(data_id, data, )")
-	wa.dbs[ns].ExecContext(ctx, "INSERT INTO data (data_id, data) VALUES ($1, $2)", key, data)
+	_, err := wa.dbs[ns].ExecContext(ctx, "INSERT INTO data (data_id, data) VALUES ($1, $2)", key, data)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // WriteData
@@ -92,15 +160,28 @@ func (wa *WebApp) PutData(w http.ResponseWriter, r *http.Request) {
 	dataPath := chi.URLParam(r, "data")
 	ns := chi.URLParam(r, "ns")
 
+	var zdata bytes.Buffer
+	zw := zlib.NewWriter(&zdata)
+
 	// bucket := JumpHash(dataPath, wa.buckets)
 	buf, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		log.Println("request", err)
+		wa.render.JSON(w, http.StatusInternalServerError,
+			map[string]string{"error": fmt.Sprintf("%s", err)})
+		return
+
+	}
+	zw.Write(buf)
+	zw.Close()
+
+	err = wa.InsertData(r.Context(), dataPath, ns, zdata.Bytes())
+	if err != nil {
+		wa.render.JSON(w, http.StatusInternalServerError,
+			map[string]string{"error": fmt.Sprintf("%s", err)})
+		return
+
 	}
 
-	wa.InsertData(r.Context(), dataPath, ns, buf)
-
-	fmt.Println(buf) // do whatever you want with the binary file buf
 	wa.render.JSON(w, http.StatusCreated, &PutDataRSP{
 		Namespace: ns,
 		Path:      dataPath,
@@ -120,8 +201,19 @@ func (wa *WebApp) GetOneData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// wa.render.JSON(w, http.StatusOK, oneData)
-	w.Write(oneData.Data)
+	//buff := []byte{120, 156, 202, 72, 205, 201, 201, 215, 81, 40, 207,
+	//	47, 202, 73, 225, 2, 4, 0, 0, 255, 255, 33, 231, 4, 147}
+
+	rb := bytes.NewReader(oneData.Data)
+	zr, err := zlib.NewReader(rb)
+	if err != nil {
+		wa.render.JSON(w, http.StatusInternalServerError,
+			map[string]string{"error": fmt.Sprintf("%s", err)})
+		return
+	}
+	data, _ := ioutil.ReadAll(zr)
+
+	w.Write(data)
 }
 
 func (wa *WebApp) DelOneData(w http.ResponseWriter, r *http.Request) {
@@ -158,9 +250,9 @@ func (wa *WebApp) GetAllData(w http.ResponseWriter, r *http.Request) {
 	}
 	limit := 2
 	offset := limit * (page - 1)
-	fmt.Println(offset)
 	ns := chi.URLParam(r, "ns")
 
+	fmt.Println("Namespaces used: ")
 	ad := []Data{}
 	var total int
 	row := wa.dbs[ns].QueryRow("SELECT count(*) FROM data;")
