@@ -1,0 +1,11 @@
+.env
+.envrc
+dist/
+.env.fish
+*.swp
+.env
+bin/*
+releases/*
+*.yml
+*.md
+certs/*

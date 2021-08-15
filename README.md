@@ -2,7 +2,7 @@
 
 A simple sqlite store for raw data. 
 
-Its provide a thin rest api for different namespaces. Each namespace belongs to a sqlite's db. 
+Its provide a thin rest api for differents namespaces. Each namespace belongs to a sqlite's db. 
 
 This project pretends to be simple. Having a sqlite store allows move files directly when needed.
 

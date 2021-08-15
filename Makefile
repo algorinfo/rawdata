@@ -16,27 +16,15 @@ ifeq (cert,$(firstword $(MAKECMDGOALS)))
   $(eval $(RUN_ARGS):;@:)
 endif
 
-.PHONY: web
-web:
-	go run main.go web
-
-.PHONY: worker
-worker:
-	go run main.go worker
-
-.PHONY: build-js
-build-js: 
-	yarn build
-
-
-.PHONY: build-go
-build-go: 
-	go build $(LDFLAGS) -o dist/$(PROJECTNAME)
-	chmod +x dist/$(PROJECTNAME)
+.PHONY: run
+run:
+	go run main.go volume
 
 .PHONY: build
-build: build-js build-go
-	cp create_db.sh dist/
+build:
+	# https://github.com/mattn/go-sqlite3/issues/327
+	CGO_ENABLED=1 go build $(LDFLAGS) -o dist/$(PROJECTNAME)
+	chmod +x dist/$(PROJECTNAME)
 
 .PHONY: tar
 tar:
