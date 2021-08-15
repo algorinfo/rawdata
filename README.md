@@ -1,42 +1,77 @@
 # Raw Data
 
-**WIP**
+A simple sqlite store for raw data. 
 
-This project pretends to be a lightweight raw data store based on SQLite. Which could be used distributed or as a single instance. 
+Its provide a thin rest api for different namespaces. Each namespace belongs to a sqlite's db. 
 
-Raw data is usually the first place where data starts their journey (1). 
+This project pretends to be simple. Having a sqlite store allows move files directly when needed.
 
-Although S3, GCS or Apache Hadoop are used as data lakes (2) those system are planned for blobs biggers than ~50mb (3). As a personal opinion I think this is usefull if the data already exist between a company and maybe this data is distributed in different stores. The problem emerge when incremental small data need to be ingested as is the case for crawled data.
+A fileserver is embebed for that purpose, and the option to take a snapshot for each namespace.
 
-## Concepts
+Future work could include a sharding strategy to split load, and a index for text data. 
 
-Brain: Main node which coordinates writes and reads between nodes. 
-Volume: A node identifed by an address. Each volume could have differents namespaces, but each namespace has only one SQLite file. Volume, node, barrier or bucket are the same. 
-Namespace: A different folder or path used to separate differents domains of data. 
-Client: Push and/or pull from the store. 
+## Use cases
+
+For small data ~1mb. 
+
+My use case is to store crawled data (~700kb), up to 500k objects per namespace.
+
+Bigger files are discourage. Each file is loaded in memory for each request. SQLite doesn't provide a way to stream data directly. 
+
+## Defaults to be considered
+
+1. A `default` namespace is created when started. 
+2. No auth, [reverse proxy auth](https://docs.nginx.com/nginx/admin-guide/security-controls/configuring-subrequest-authentication/) is easy to be included using nginx. In the future could be included as a auth endpoint in the app.
+3. Every object is compressed and decompressed using zlib.
 
 
-## Main idea behind Raw data
+## API
 
-Data is stored in differents SQLite files used as buckets, or barriers(5). Data is distributed using the Jump hash algorithm[(6)](https://arxiv.org/pdf/1406.2294.pdf) between. Jump hash allows a very simple way to shard data and rebalance adding nodes,  see a proof of concept in python [here](https://github.com/nuxion/jump_poc)
+- GET /status
+  - 200 if everything is ok
 
-The catch of jump hash is it doesn't support random removal of nodes and buckets names. But in the data domain, usually one expect to grow more than shrink (7). 
+- GET /files
+  - Fileserver. List all the sqlite files for each namespace
+  
+- POST /v1/namespace
+  - Create a namespace
+  { "name" : "my_namespace" }
 
-The brain, or main node doesn't store any information about the data itself, it only maps keys to nodes. Besides that using the jump algorithm, clients could implement the same algorithm and know in advance where the information is, only if they knows which bucket number belongs to which server. The brain is similar to the Directory server in the facebook paper. 
+- GET /v1/namespace
+  - List namespaces
 
-SQLite is battle tested database. It works well under load, and usually is used as a on-disk file format (8)
+- GET /v1/namespace/{namespace}/_backup 
+  - Takes a backup, This action is SYNC, so consider the time of the request for big files ( > 6 GB)
+  
+- PUT /{namespace}/{key}
+  - 201 if created, anything else = fail
+- DELETE /{namespace}/{key}
+  - 200 Deleted
+- GET /{namespace}/
+  - List files as an API, base64 encoded data.
+  - This should be moved to the API endpoints. Filter options will be included
+  in future versions.
 
-The problem with small files is mentioned in the facebook's paper but also in the sqlite page (
-9): 
-    > We initially stored thousands of files in each directoryof an NFS volume which led to an excessive number ofdisk operations to read even a single image.   Becauseof how the NAS appliances manage directory metadata,placing thousands of files in a directory was extremelyinefficient as the directory’s blockmap was too large tobe cached effectively by the  appliance.   Consequentlyit was common to incur more than 10 disk operations toretrieve a single image. 
-    
 
-On the other side, sqlite provides us: 
-- consistency guaranties writing files
-- A easy way to pull data: we can ask to each volume server for the sqlite file directly. 
-- A easy way to backup data
-- The option to use SQL lang
+## Usage
 
+By default `default` namespace is created: 
+
+Put an object
+```
+curl -v -L -X PUT -d bigswag localhost:6667/default/wehave
+```
+
+Get an object (original format)
+
+```
+curl -v -L localhost:6667/default/wehave
+```
+
+Delete an object
+```
+curl -v -L -X DELETE localhost:6667/default/wehave
+```
 
 
 ## Similar projects and inspiration for this work
@@ -60,8 +95,5 @@ The problem is the same than before, is not suitable for small data in the long 
 3. [Data block in HDFS](https://data-flair.training/blogs/data-block/)
 4. [Facebook photo storage](https://www.usenix.org/legacy/event/osdi10/tech/full_papers/Beaver.pdf)
 5. [The anatomy of a Large-Scale web search engine](http://infolab.stanford.edu/~backrub/google.html)
-6. [A Fast, Minimal Memory, Consistent Hash Algorithm](https://arxiv.org/pdf/1406.2294.pdf)
-7. [Consistent Hashing: Algorithmic Tradeoffs](https://dgryski.medium.com/consistent-hashing-algorithmic-tradeoffs-ef6b8e2fcae8)
 8. [When to use sqlite](https://www.sqlite.org/whentouse.html)
 9. [35% faster than the filesystem](https://www.sqlite.org/fasterthanfs.html)
-10. [A proof of concept balancing keys in jump hash](https://github.com/nuxion/jump_poc)

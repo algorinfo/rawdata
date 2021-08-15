@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"compress/zlib"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -30,8 +29,8 @@ type PutDataRSP struct {
 	Namespace string `json:"namespace"`
 	Path      string `json:"path"`
 	// HashKey   string  `json:"hashKey"`
-	GroupBy string `json:"groupBy,omitempty"`
-	Bucket  int32  `json:"bucket,omitempty"`
+	GroupBy string `json:"groupBy,omitempty"` // to be deprecated
+	Bucket  int32  `json:"bucket,omitempty"`  // to be deprecated
 }
 
 type Volume struct {
@@ -48,6 +47,12 @@ func JumpHash(key string, b int) int32 {
 	return bucket
 }
 
+/* Config
+Main config it has a rateLimit
+Addr: Full address to listen to ":6667" by default
+RateLimit: how many rq per ip per minute
+NSDir: namespace dir where files will be stored
+*/
 type Config struct {
 	Addr      string
 	RateLimit int
@@ -92,18 +97,27 @@ func (wa *WebApp) Run() {
 	http.ListenAndServe(wa.cfg.Addr, wa.r)
 }
 
-type Data struct {
-	DataID    string         `db:"data_id"`
-	Data      []byte         `db:"data"`
-	GroupBy   sql.NullString `db:"group_by"`
-	Checksum  sql.NullString `db:"checksum"`
-	CreatedAt string         `db:"created_at"`
+/* DataModel
+Main data model in the sqlite store
+each namespace will share the same model
+*/
+type DataModel struct {
+	DataID string `db:"data_id"`
+	Data   []byte `db:"data"`
+	// GroupBy   sql.NullString `db:"group_by"`
+	// Checksum  sql.NullString `db:"checksum"`
+	CreatedAt string `db:"created_at"`
 }
 
+/* Namespace
+Right now is a thin wrapper. In the future
+it could have other annotations.
+*/
 type Namespace struct {
 	Name string `json:"name"`
 }
 
+// NSBackup, endpoint to start a backup in place of a namespace
 func (wa *WebApp) NSBackup(w http.ResponseWriter, r *http.Request) {
 	ns := chi.URLParam(r, "ns")
 	fullSrc := fmt.Sprintf("%s%s.db", wa.cfg.NSDir, ns)
@@ -114,6 +128,7 @@ func (wa *WebApp) NSBackup(w http.ResponseWriter, r *http.Request) {
 
 }
 
+// CreateNS, endpoint which creates a new namespace
 func (wa *WebApp) CreateNS(w http.ResponseWriter, r *http.Request) {
 	b, err := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
@@ -138,11 +153,13 @@ func (wa *WebApp) CreateNS(w http.ResponseWriter, r *http.Request) {
 
 }
 
+// AllNS list all namespaces
 func (wa *WebApp) AllNS(w http.ResponseWriter, r *http.Request) {
 
 	wa.render.JSON(w, http.StatusOK, &wa.namespaces)
 }
 
+// InsertData insert data in the store
 func (wa *WebApp) InsertData(ctx context.Context, key, ns string, data []byte) error {
 	// wa.dbs[ns].Exec("INSERT INTO data(data_id, data, )")
 	_, err := wa.dbs[ns].ExecContext(ctx, "INSERT INTO data (data_id, data) VALUES ($1, $2)", key, data)
@@ -194,7 +211,7 @@ func (wa *WebApp) GetOneData(w http.ResponseWriter, r *http.Request) {
 	dataPath := chi.URLParam(r, "data")
 	ns := chi.URLParam(r, "ns")
 
-	oneData := Data{}
+	oneData := DataModel{}
 	err := wa.dbs[ns].Get(&oneData, "SELECT * FROM data where data_id = ?", dataPath)
 	if err != nil {
 		wa.render.JSON(w, http.StatusNotFound, map[string]string{"error": "Data not found"})
@@ -231,9 +248,9 @@ func (wa *WebApp) DelOneData(w http.ResponseWriter, r *http.Request) {
 }
 
 type AllData struct {
-	Rows  []Data `json:"rows"`
-	Next  int    `json:"next"`
-	Total int    `json:"total"`
+	Rows  []DataModel `json:"rows"`
+	Next  int         `json:"next"`
+	Total int         `json:"total"`
 }
 
 func (wa *WebApp) GetAllData(w http.ResponseWriter, r *http.Request) {
@@ -252,8 +269,7 @@ func (wa *WebApp) GetAllData(w http.ResponseWriter, r *http.Request) {
 	offset := limit * (page - 1)
 	ns := chi.URLParam(r, "ns")
 
-	fmt.Println("Namespaces used: ")
-	ad := []Data{}
+	ad := []DataModel{}
 	var total int
 	row := wa.dbs[ns].QueryRow("SELECT count(*) FROM data;")
 	_ = row.Scan(&total)
