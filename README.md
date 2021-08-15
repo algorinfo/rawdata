@@ -45,8 +45,14 @@ Bigger files are discourage. Each file is loaded in memory for each request. SQL
   
 - PUT /{namespace}/{key}
   - 201 if created, anything else = fail
+  - If the path already exist, the data will be replaced with the new sent.
+  
+- POST /{namespace}/{key}
+  - 201 if created, anything else = fail
+
 - DELETE /{namespace}/{key}
   - 200 Deleted
+  
 - GET /{namespace}/
   - List files as an API, base64 encoded data.
   - This should be moved to the API endpoints. Filter options will be included
@@ -57,18 +63,22 @@ Bigger files are discourage. Each file is loaded in memory for each request. SQL
 
 By default `default` namespace is created: 
 
-Put an object
+Create or update a object
 ```
 curl -v -L -X PUT -d bigswag localhost:6667/default/wehave
 ```
 
-Get an object (original format)
+Create a new object
+```
+curl -v -L -X PUT -d bigswag localhost:6667/default/wehave
+```
 
+Get object (uncompressed original format)
 ```
 curl -v -L localhost:6667/default/wehave
 ```
 
-Delete an object
+Delete object
 ```
 curl -v -L -X DELETE localhost:6667/default/wehave
 ```

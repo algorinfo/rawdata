@@ -90,6 +90,7 @@ func (wa *WebApp) Run() {
 	FileServer(wa.r, "/files", filesDir)
 
 	wa.r.Put("/{ns}/{data}", wa.PutData)
+	wa.r.Post("/{ns}/{data}", wa.PostData)
 	wa.r.Get("/{ns}/{data}", wa.GetOneData)
 	wa.r.Delete("/{ns}/{data}", wa.DelOneData)
 	wa.r.Get("/{ns}/", wa.GetAllData)
@@ -169,10 +170,20 @@ func (wa *WebApp) InsertData(ctx context.Context, key, ns string, data []byte) e
 	return nil
 }
 
-// WriteData
-// Is in charge of assign a bucket for the data sent,
-// and send byte data to the actual bucket
-func (wa *WebApp) PutData(w http.ResponseWriter, r *http.Request) {
+// InsertData insert data in the store
+func (wa *WebApp) UpsertData(ctx context.Context, key, ns string, data []byte) error {
+	// wa.dbs[ns].Exec("INSERT INTO data(data_id, data, )")
+	_, err := wa.dbs[ns].ExecContext(ctx, "INSERT INTO data (data_id, data) VALUES ($1, $2) ON CONFLICT(data_id) DO UPDATE SET data=$2", key, data)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// PostData
+// Write data to the sqlite file
+// If the path already exist will fail
+func (wa *WebApp) PostData(w http.ResponseWriter, r *http.Request) {
 
 	dataPath := chi.URLParam(r, "data")
 	ns := chi.URLParam(r, "ns")
@@ -192,6 +203,44 @@ func (wa *WebApp) PutData(w http.ResponseWriter, r *http.Request) {
 	zw.Close()
 
 	err = wa.InsertData(r.Context(), dataPath, ns, zdata.Bytes())
+	if err != nil {
+		wa.render.JSON(w, http.StatusInternalServerError,
+			map[string]string{"error": fmt.Sprintf("%s", err)})
+		return
+
+	}
+
+	wa.render.JSON(w, http.StatusCreated, &PutDataRSP{
+		Namespace: ns,
+		Path:      dataPath,
+		// Bucket: bucket,
+	})
+}
+
+// PutData
+// Write data to the sqlite store
+// If the path already exist, will replace the data.
+// TODO: date will remain as origin.
+func (wa *WebApp) PutData(w http.ResponseWriter, r *http.Request) {
+
+	dataPath := chi.URLParam(r, "data")
+	ns := chi.URLParam(r, "ns")
+
+	var zdata bytes.Buffer
+	zw := zlib.NewWriter(&zdata)
+
+	// bucket := JumpHash(dataPath, wa.buckets)
+	buf, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		wa.render.JSON(w, http.StatusInternalServerError,
+			map[string]string{"error": fmt.Sprintf("%s", err)})
+		return
+
+	}
+	zw.Write(buf)
+	zw.Close()
+
+	err = wa.UpsertData(r.Context(), dataPath, ns, zdata.Bytes())
 	if err != nil {
 		wa.render.JSON(w, http.StatusInternalServerError,
 			map[string]string{"error": fmt.Sprintf("%s", err)})
