@@ -22,13 +22,14 @@ func Env(key, defaultValue string) string {
 }
 
 var (
-	rateLimit  = Env("RD_RATE_LIMIT", "1000")
-	listenAddr = Env("RD_LISTEN_ADDR", ":6667")
-	nsDir      = Env("RD_NS_DIR", "data/")
-	redisAddr  = Env("RD_REDIS_ADDR", "localhost:6379")
-	redisPass  = Env("RD_REDIS_PASS", "")
-	redisDB    = Env("RD_REDIS_DB", "0")
-	streamNo   = Env("RD_STREAM", "false")
+	rateLimit    = Env("RD_RATE_LIMIT", "1000")
+	listenAddr   = Env("RD_LISTEN_ADDR", ":6667")
+	nsDir        = Env("RD_NS_DIR", "data/")
+	redisAddr    = Env("RD_REDIS_ADDR", "localhost:6379")
+	redisPass    = Env("RD_REDIS_PASS", "")
+	redisDB      = Env("RD_REDIS_DB", "0")
+	streamNo     = Env("RD_STREAM", "false")
+	eStreamLimit = Env("RD_STREAM_LIMIT", "1000")
 )
 
 func main() {
@@ -45,6 +46,7 @@ func main() {
 	listenV := volumeCmd.String("listen", listenAddr, "Address to listen")
 	pnsDir := volumeCmd.String("namespace", nsDir, "Namespace dir")
 	stream := volumeCmd.Bool("stream", streamB, "Stream data added")
+	streamLimit := volumeCmd.String("stream-limit", eStreamLimit, "How many message by stream")
 
 	flag.Parse()
 	if len(os.Args) < 2 {
@@ -85,6 +87,7 @@ func main() {
 
 		if *stream {
 			intDb, _ := strconv.Atoi(redisDB)
+			maxLen, _ := strconv.ParseInt(*streamLimit, 10, 64)
 			p := store.NewProducer(store.WithRedis(
 				&store.Redis{
 					&store.Connection{
@@ -94,6 +97,7 @@ func main() {
 					},
 				},
 			),
+				store.WithMaxLen(maxLen),
 			)
 			vol := volume.New(
 				volume.WithConfig(cfg),

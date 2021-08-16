@@ -10,6 +10,9 @@ A fileserver is embebed for that purpose, and the option to take a snapshot for 
 
 Future work could include a sharding strategy to split load, and a index for text data. 
 
+:sparkles: **New** If `-stream` option is selected, it will stream each new entry by namespace in a Redis Instance. 
+
+
 ## Use cases
 
 For small data ~1mb. 
@@ -23,6 +26,21 @@ Bigger files are discourage. Each file is loaded in memory for each request. SQL
 1. A `default` namespace is created when started. 
 2. No auth, [reverse proxy auth](https://docs.nginx.com/nginx/admin-guide/security-controls/configuring-subrequest-authentication/) is easy to be included using nginx. In the future could be included as a auth endpoint in the app.
 3. Every object is compressed and decompressed using zlib.
+
+Also check the default config values:
+
+```
+var (
+	rateLimit    = Env("RD_RATE_LIMIT", "1000")
+	listenAddr   = Env("RD_LISTEN_ADDR", ":6667")
+	nsDir        = Env("RD_NS_DIR", "data/")
+	redisAddr    = Env("RD_REDIS_ADDR", "localhost:6379")
+	redisPass    = Env("RD_REDIS_PASS", "")
+	redisDB      = Env("RD_REDIS_DB", "0")
+	streamNo     = Env("RD_STREAM", "false")
+	eStreamLimit = Env("RD_STREAM_LIMIT", "1000")
+)
+```
 
 
 ## API
@@ -43,6 +61,9 @@ Bigger files are discourage. Each file is loaded in memory for each request. SQL
 - GET /v1/namespace/{namespace}/_backup 
   - Takes a backup, This action is SYNC, so consider the time of the request for big files ( > 6 GB)
   
+- GET /v1/data/{namespace} 
+  - List files as an API, base64 encoded data.
+  
 - PUT /{namespace}/{key}
   - 201 if created, anything else = fail
   - If the path already exist, the data will be replaced with the new sent.
@@ -53,7 +74,7 @@ Bigger files are discourage. Each file is loaded in memory for each request. SQL
 - DELETE /{namespace}/{key}
   - 200 Deleted
   
-- GET /{namespace}/
+- GET /{namespace}/ *will be removed in the next release*
   - List files as an API, base64 encoded data.
   - This should be moved to the API endpoints. Filter options will be included
   in future versions.
