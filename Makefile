@@ -20,6 +20,10 @@ endif
 run:
 	go run main.go volume
 
+.PHONY: redis
+redis:
+	docker-compose exec redis redis-cli
+
 .PHONY: build
 build:
 	# https://github.com/mattn/go-sqlite3/issues/327

@@ -21,6 +21,13 @@ func WithVolumes(ns []string) WebOption {
 
 }
 
+func WithProducer(p *store.Producer) WebOption {
+	return func(w *WebApp) {
+		w.producer = p
+	}
+
+}
+
 func WithConfig(c *Config) WebOption {
 	return func(w *WebApp) {
 		w.cfg = c
@@ -32,6 +39,7 @@ func DefaultConfig() *Config {
 		Addr:      "6667",
 		RateLimit: 100,
 		NSDir:     "data/",
+		Stream:    false,
 	}
 
 }
@@ -47,21 +55,22 @@ func LoadNS(wa *WebApp) error {
 	for _, e := range entries {
 
 		nsName := strings.Split(e.Name(), ".")[0]
+		log.Printf("NS Loading for %s", nsName)
 
 		if nsName != "default" {
 
 			fullPath := fmt.Sprintf("%s/%s", wa.cfg.NSDir, nsName)
 			wa.namespaces = append(wa.namespaces, nsName)
-			wa.dbs[nsName] = store.CreateDB(fullPath)
+			wa.dbs[nsName] = store.CreateDB(fullPath, dataSchemaV1)
 		}
 	}
 	return nil
 }
 
-func CreateNS(wa *WebApp, ns string) error {
+func CreateNS(wa *WebApp, schema, ns string) error {
 
 	defPath := fmt.Sprintf("%s/%s", wa.cfg.NSDir, ns)
-	def := store.CreateDB(defPath)
+	def := store.CreateDB(defPath, schema)
 	wa.dbs[ns] = def
 	wa.namespaces = append(wa.namespaces, ns)
 	return nil
@@ -83,7 +92,7 @@ func New(opts ...WebOption) *WebApp {
 		opt(wa)
 	}
 
-	CreateNS(wa, "default")
+	CreateNS(wa, dataSchemaV1, "default")
 
 	if LoadNS(wa) != nil {
 		log.Printf("Error with dir %s", wa.cfg.NSDir)
@@ -92,6 +101,11 @@ func New(opts ...WebOption) *WebApp {
 	currDir, _ := os.Getwd()
 
 	log.Printf("Starting from %s", currDir)
+	if wa.producer != nil {
+		log.Printf("With stream enabled")
+	} else {
+		log.Printf("With stream disabled")
+	}
 
 	return wa
 }

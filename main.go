@@ -22,14 +22,19 @@ func Env(key, defaultValue string) string {
 }
 
 var (
-	rateLimit  = Env("RATE_LIMIT", "100")
-	redisAddr  = Env("REDIS", "localhost:6379")
-	listenAddr = Env("LISTEN_ADDR", ":6667")
-	nsDir      = Env("NS_DIR", "data/")
+	rateLimit  = Env("RD_RATE_LIMIT", "1000")
+	listenAddr = Env("RD_LISTEN_ADDR", ":6667")
+	nsDir      = Env("RD_NS_DIR", "data/")
+	redisAddr  = Env("RD_REDIS_ADDR", "localhost:6379")
+	redisPass  = Env("RD_REDIS_PASS", "")
+	redisDB    = Env("RD_REDIS_DB", "0")
+	streamNo   = Env("RD_STREAM", "false")
 )
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
+	streamB, _ := strconv.ParseBool(streamNo)
 
 	// commands
 	brainCmd := flag.NewFlagSet("brain", flag.ExitOnError)
@@ -37,7 +42,9 @@ func main() {
 
 	// Params
 	listen := brainCmd.String("listen", ":6665", "Address to listen")
-	listenV := volumeCmd.String("listen", ":6667", "Address to listen")
+	listenV := volumeCmd.String("listen", listenAddr, "Address to listen")
+	pnsDir := volumeCmd.String("namespace", nsDir, "Namespace dir")
+	stream := volumeCmd.Bool("stream", streamB, "Stream data added")
 
 	flag.Parse()
 	if len(os.Args) < 2 {
@@ -47,9 +54,7 @@ func main() {
 	switch os.Args[1] {
 	case "brain":
 		err := brainCmd.Parse(os.Args[2:])
-		redis := store.NewRedis(&store.RedisOptions{
-			Addr: redisAddr,
-		})
+		redis := store.NewRedis(store.WithDefaults())
 		if err != nil {
 			log.Fatal("Error parsing args")
 		}
@@ -70,17 +75,37 @@ func main() {
 
 		rt, _ := strconv.Atoi(rateLimit)
 
-		cfg := volume.DefaultConfig()
-		cfg.Addr = *listenV
-		cfg.RateLimit = rt
-		cfg.NSDir = nsDir
+		cfg := &volume.Config{
+			Addr:      *listenV,
+			RateLimit: rt,
+			NSDir:     *pnsDir,
+		}
 
 		// store.UseDB()
-		vol := volume.New(
-			volume.WithConfig(cfg),
-		)
 
-		vol.Run()
+		if *stream {
+			intDb, _ := strconv.Atoi(redisDB)
+			p := store.NewProducer(store.WithRedis(
+				&store.Redis{
+					&store.Connection{
+						Addr:     redisAddr,
+						Password: redisPass,
+						DB:       intDb,
+					},
+				},
+			),
+			)
+			vol := volume.New(
+				volume.WithConfig(cfg),
+				volume.WithProducer(p),
+			)
+			vol.Run()
+		} else {
+			vol := volume.New(
+				volume.WithConfig(cfg),
+			)
+			vol.Run()
+		}
 
 	default:
 		fmt.Printf("Please use 'web' or 'volume' command")

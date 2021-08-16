@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -14,8 +15,10 @@ var (
 	redisInst *redis.Client
 )
 
+type RedisOption func(*Redis)
+
 // RedisOptions to connect
-type RedisOptions struct {
+type Connection struct {
 	Addr     string
 	Password string
 	DB       int
@@ -23,16 +26,36 @@ type RedisOptions struct {
 
 // Redis connection
 type Redis struct {
-	Opts *RedisOptions
+	Conn *Connection
+}
+
+func WithRedisAddr(a string) RedisOption {
+	return func(r *Redis) {
+		r.Conn.Addr = a
+	}
+}
+
+func WithRedisConn(cfg *Connection) RedisOption {
+	return func(r *Redis) {
+		r.Conn = cfg
+	}
+}
+
+func WithDefaults() RedisOption {
+	return func(r *Redis) {
+		r.Conn = &Connection{
+			Addr: "localhost:6379",
+		}
+	}
 }
 
 // Connect to redis
 func (r *Redis) Connect() {
 	log.Println("Connecting to Redis Database")
 	redisInst = redis.NewClient(&redis.Options{
-		Addr:     r.Opts.Addr,
-		Password: r.Opts.Password,
-		DB:       r.Opts.DB,
+		Addr:     r.Conn.Addr,
+		Password: r.Conn.Password,
+		DB:       r.Conn.DB,
 	})
 	log.Println("Connected")
 }
@@ -45,11 +68,60 @@ func (r *Redis) GetInstance() *redis.Client {
 
 // NewRedis create a redis store, this will be a wrapper of Redis library
 // to get a unique instance of redis.
-func NewRedis(opts *RedisOptions) *Redis {
-	r := &Redis{
-		Opts: opts,
+func NewRedis(opts ...RedisOption) *Redis {
+	defaultConn := &Connection{
+		Addr: "localhost:6379",
 	}
+
+	r := &Redis{
+		Conn: defaultConn,
+	}
+
+	for _, opt := range opts {
+		opt(r)
+	}
+
 	return r
+}
+
+type ProducerOption func(*Producer)
+
+func WithRedis(r *Redis) ProducerOption {
+	return func(p *Producer) {
+		p.RDB = r
+	}
+}
+
+func WithStream(s string) ProducerOption {
+	return func(p *Producer) {
+		p.Stream = s
+	}
+}
+
+func WithMaxLen(m int64) ProducerOption {
+	return func(p *Producer) {
+		p.MaxLenApprox = m
+	}
+}
+
+func NewProducer(opts ...ProducerOption) *Producer {
+	p := &Producer{}
+
+	for _, opt := range opts {
+		opt(p)
+	}
+	return p
+}
+
+func DefaultProducer() *Producer {
+
+	r := NewRedis()
+	p := &Producer{
+		RDB:          r,
+		Stream:       "RAW.DEF",
+		MaxLenApprox: 10,
+	}
+	return p
 }
 
 //Producer redis streams producer
@@ -76,13 +148,37 @@ func (p *Producer) Send(ctx context.Context, values interface{}) error {
 	return nil
 }
 
+/*type Message struct {
+	Stream string
+	MaxLen int64
+	ID string
+	Values interface{}
+}*/
+
+func (p *Producer) SendTo(ctx context.Context, stream string, values interface{}) error {
+	rdb := p.RDB.GetInstance()
+	args := &redis.XAddArgs{
+		Stream:       stream,
+		MaxLenApprox: p.MaxLenApprox,
+		ID:           "*",
+		Values:       values,
+	}
+	res, err := rdb.XAdd(ctx, args).Result()
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	fmt.Println(res)
+	return nil
+}
+
 // CreateGroup Create a redis stream group
 func (p *Producer) CreateGroup(ctx context.Context, stream, group, start string) error {
 
 	rdb := p.RDB.GetInstance()
 	_, err := rdb.XGroupCreate(ctx, stream, group, start).Result()
 	if err != nil {
-		log.Panicln(err)
+		log.Println(err)
 		return err
 	}
 	return nil
@@ -142,4 +238,3 @@ func (c *Consumer) ReadGroup(ctx context.Context, opts *GroupOpts, f ReadMessage
 	}
 
 }
-

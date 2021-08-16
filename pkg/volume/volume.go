@@ -57,6 +57,10 @@ type Config struct {
 	Addr      string
 	RateLimit int
 	NSDir     string
+	Stream    bool
+	/*RedisAddress string
+	RedisPass    string
+	RedisDB      int*/
 }
 
 // WebApp Main web app
@@ -67,6 +71,7 @@ type WebApp struct {
 	dbs        map[string]*sqlx.DB
 	namespaces []string
 	cfg        *Config
+	producer   *store.Producer
 }
 
 // Run main runner
@@ -83,6 +88,7 @@ func (wa *WebApp) Run() {
 		r.Get("/namespace", wa.AllNS)
 		r.Get("/namespace/{ns}/_backup", wa.NSBackup)
 		r.Post("/namespace", wa.CreateNS)
+		r.Get("/data/{ns}", wa.GetAllData)
 	})
 
 	workDir, _ := os.Getwd()
@@ -115,7 +121,9 @@ Right now is a thin wrapper. In the future
 it could have other annotations.
 */
 type Namespace struct {
-	Name string `json:"name"`
+	Name        string `json:"name"`
+	Stream      bool   `json:"stream,omitempty"`
+	StreamLimit int    `json:"stream_limit,omitempty"`
 }
 
 // NSBackup, endpoint to start a backup in place of a namespace
@@ -148,7 +156,7 @@ func (wa *WebApp) CreateNS(w http.ResponseWriter, r *http.Request) {
 		wa.render.JSON(w, http.StatusOK, &wa.namespaces)
 		return
 	}
-	CreateNS(wa, ns.Name)
+	CreateNS(wa, dataSchemaV1, ns.Name)
 
 	wa.render.JSON(w, http.StatusCreated, &wa.namespaces)
 
@@ -210,6 +218,15 @@ func (wa *WebApp) PostData(w http.ResponseWriter, r *http.Request) {
 
 	}
 
+	if wa.producer != nil {
+		nsStream := fmt.Sprintf("RD.%s", ns)
+		wa.producer.SendTo(r.Context(), nsStream, map[string]interface{}{
+			"namespace": ns,
+			"path":      dataPath,
+		})
+
+	}
+
 	wa.render.JSON(w, http.StatusCreated, &PutDataRSP{
 		Namespace: ns,
 		Path:      dataPath,
@@ -245,6 +262,15 @@ func (wa *WebApp) PutData(w http.ResponseWriter, r *http.Request) {
 		wa.render.JSON(w, http.StatusInternalServerError,
 			map[string]string{"error": fmt.Sprintf("%s", err)})
 		return
+
+	}
+
+	if wa.producer != nil {
+		nsStream := fmt.Sprintf("RD.%s", ns)
+		wa.producer.SendTo(r.Context(), nsStream, map[string]interface{}{
+			"namespace": ns,
+			"path":      dataPath,
+		})
 
 	}
 

@@ -20,4 +20,5 @@ ENV PATH=$PATH:/app/dist
 WORKDIR /app
 #ENTRYPOINT ["/app/bin/"]
 EXPOSE 6667
+
 CMD ["/app/dist/rawdata", "volume"]
