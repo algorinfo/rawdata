@@ -128,3 +128,10 @@ The problem is the same than before, is not suitable for small data in the long 
 5. [The anatomy of a Large-Scale web search engine](http://infolab.stanford.edu/~backrub/google.html)
 8. [When to use sqlite](https://www.sqlite.org/whentouse.html)
 9. [35% faster than the filesystem](https://www.sqlite.org/fasterthanfs.html)
+
+*Redis INFO*
+
+- https://redis.io/topics/streams-intro
+- https://redis.com/blog/beyond-the-cache-with-python/
+- https://redis-py.readthedocs.io/en/stable/
+- https://tirkarthi.github.io/programming/2018/08/20/redis-streams-python.html 

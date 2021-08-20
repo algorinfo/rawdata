@@ -30,6 +30,7 @@ var (
 	redisDB      = Env("RD_REDIS_DB", "0")
 	streamNo     = Env("RD_STREAM", "false")
 	eStreamLimit = Env("RD_STREAM_LIMIT", "1000")
+	streamNS     = Env("RD_STREAM_NS", "RD")
 )
 
 func main() {
@@ -47,6 +48,7 @@ func main() {
 	pnsDir := volumeCmd.String("namespace", nsDir, "Namespace dir")
 	stream := volumeCmd.Bool("stream", streamB, "Stream data added")
 	streamLimit := volumeCmd.String("stream-limit", eStreamLimit, "How many message by stream")
+	streamNSC := volumeCmd.String("stream-ns", streamNS, "Which namespace use for redis")
 
 	flag.Parse()
 	if len(os.Args) < 2 {
@@ -89,16 +91,17 @@ func main() {
 			intDb, _ := strconv.Atoi(redisDB)
 			maxLen, _ := strconv.ParseInt(*streamLimit, 10, 64)
 			p := store.NewProducer(store.WithRedis(
-				&store.Redis{
-					&store.Connection{
-						Addr:     redisAddr,
-						Password: redisPass,
-						DB:       intDb,
-					},
+				&store.Redis{Conn: &store.Connection{
+					Addr:     redisAddr,
+					Password: redisPass,
+					DB:       intDb,
+				},
 				},
 			),
 				store.WithMaxLen(maxLen),
 			)
+			p.Namespace = *streamNSC
+			p.RDB.Connect()
 			vol := volume.New(
 				volume.WithConfig(cfg),
 				volume.WithProducer(p),

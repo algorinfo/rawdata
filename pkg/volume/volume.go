@@ -81,9 +81,7 @@ func (wa *WebApp) Run() {
 	wa.r.Use(middleware.Recoverer)
 	wa.r.Use(middleware.Logger)
 	wa.r.Use(httprate.LimitByIP(wa.cfg.RateLimit, 1*time.Minute))
-	wa.r.Get("/status", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("welcome"))
-	})
+	wa.r.Get("/status", wa.Status)
 	wa.r.Route("/v1", func(r chi.Router) {
 		r.Get("/namespace", wa.AllNS)
 		r.Get("/namespace/{ns}/_backup", wa.NSBackup)
@@ -99,7 +97,7 @@ func (wa *WebApp) Run() {
 	wa.r.Post("/{ns}/{data}", wa.PostData)
 	wa.r.Get("/{ns}/{data}", wa.GetOneData)
 	wa.r.Delete("/{ns}/{data}", wa.DelOneData)
-	wa.r.Get("/{ns}/", wa.GetAllData)
+	wa.r.Get("/{ns}", wa.GetAllData)
 	log.Println("Running web mode on: ", wa.cfg.Addr)
 	http.ListenAndServe(wa.cfg.Addr, wa.r)
 }
@@ -124,6 +122,30 @@ type Namespace struct {
 	Name        string `json:"name"`
 	Stream      bool   `json:"stream,omitempty"`
 	StreamLimit int    `json:"stream_limit,omitempty"`
+}
+
+type StatusResponse struct {
+	Stream         bool     `json:"stream"`
+	StreamLimit    int64    `json:"streamLimit,string"`
+	RedisNamespace string   `json:"redisNamespace"`
+	Namespaces     []string `json:"namespaces"`
+}
+
+// NSBackup, endpoint to start a backup in place of a namespace
+func (wa *WebApp) Status(w http.ResponseWriter, r *http.Request) {
+	var stream bool
+	if wa.producer != nil {
+		stream = true
+	}
+	sr := &StatusResponse{
+		Stream:         stream,
+		StreamLimit:    wa.producer.MaxLenApprox,
+		RedisNamespace: wa.producer.Namespace,
+		Namespaces:     wa.namespaces,
+	}
+
+	wa.render.JSON(w, http.StatusOK, sr)
+
 }
 
 // NSBackup, endpoint to start a backup in place of a namespace
@@ -266,7 +288,7 @@ func (wa *WebApp) PutData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if wa.producer != nil {
-		nsStream := fmt.Sprintf("RD.%s", ns)
+		nsStream := fmt.Sprintf("%s.%s", wa.producer.Namespace, ns)
 		wa.producer.SendTo(r.Context(), nsStream, map[string]interface{}{
 			"namespace": ns,
 			"path":      dataPath,
@@ -328,19 +350,43 @@ type AllData struct {
 	Total int         `json:"total"`
 }
 
-func (wa *WebApp) GetAllData(w http.ResponseWriter, r *http.Request) {
+func getStringQueryParam(value *string, r *http.Request, key string) error {
+	sp := r.URL.Query().Get(key)
+	if sp != "" {
+		*value = sp
+	}
 
-	page := 1
-	sp := r.URL.Query().Get("page")
+	return nil
+}
+
+func getNumberQueryParam(value *int, r *http.Request, key string) error {
+	sp := r.URL.Query().Get(key)
 	if sp != "" {
 		pg, err := strconv.Atoi(sp)
 		if err != nil {
-			wa.render.JSON(w, http.StatusInternalServerError, map[string]string{"error": "bad param"})
-			return
+			return err
 		}
-		page = pg
+		*value = pg
+		return nil
 	}
-	limit := 2
+
+	return nil
+}
+
+func (wa *WebApp) GetAllData(w http.ResponseWriter, r *http.Request) {
+
+	page := 1
+	limit := 50
+
+	err1 := getNumberQueryParam(&page, r, "page")
+	err2 := getNumberQueryParam(&limit, r, "limit")
+	if err1 != nil || err2 != nil {
+		wa.render.JSON(w, http.StatusInternalServerError,
+			map[string]string{"error": "bad param"})
+		return
+
+	}
+
 	offset := limit * (page - 1)
 	ns := chi.URLParam(r, "ns")
 

@@ -105,7 +105,11 @@ func WithMaxLen(m int64) ProducerOption {
 }
 
 func NewProducer(opts ...ProducerOption) *Producer {
-	p := &Producer{}
+	p := &Producer{
+		Stream:       "RAW.DEF",
+		MaxLenApprox: 10,
+		Namespace:    "RSTRM.",
+	}
 
 	for _, opt := range opts {
 		opt(p)
@@ -120,6 +124,7 @@ func DefaultProducer() *Producer {
 		RDB:          r,
 		Stream:       "RAW.DEF",
 		MaxLenApprox: 10,
+		Namespace:    "RSTRM.",
 	}
 	return p
 }
@@ -129,6 +134,7 @@ type Producer struct {
 	RDB          *Redis
 	Stream       string
 	MaxLenApprox int64
+	Namespace    string
 }
 
 // Send Xadd command wrapper
