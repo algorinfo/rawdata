@@ -7,14 +7,6 @@ PROJECTNAME := rawdata
 
 LDFLAGS=-ldflags "-X=main.Version=$(VERSION) -X=main.Build=$(BUILD)"
 STDERR := /tmp/.$(PROJECTNAME)-stderr.txt
-export CGO_ENABLED=0
-# If the first argument is "run"...
-ifeq (cert,$(firstword $(MAKECMDGOALS)))
-  # use the rest as arguments for "run"
-  RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
-  # ...and turn them into do-nothing targets
-  $(eval $(RUN_ARGS):;@:)
-endif
 
 .PHONY: run
 run:
@@ -46,4 +38,9 @@ release: docker
 .PHONY: migrate
 migrate:
 	migrate -database ${AGW_DB} -path migrations/ up
-	tar dist.tgz 
+
+.PHONY: tag
+tag:
+	#poetry version prealese
+	git tag -a $(shell poetry version --short) -m "$(shell git log -1 --pretty=%B | head -n 1)"
+
