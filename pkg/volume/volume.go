@@ -12,14 +12,12 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"time"
 
 	"github.com/algorinfo/rawstore/pkg/jump"
 	"github.com/algorinfo/rawstore/pkg/store"
 	"github.com/cespare/xxhash"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/httprate"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/unrolled/render"
@@ -54,10 +52,9 @@ RateLimit: how many rq per ip per minute
 NSDir: namespace dir where files will be stored
 */
 type Config struct {
-	Addr      string
-	RateLimit int
-	NSDir     string
-	Stream    bool
+	Addr   string
+	NSDir  string
+	Stream bool
 	/*RedisAddress string
 	RedisPass    string
 	RedisDB      int*/
@@ -80,12 +77,13 @@ func (wa *WebApp) Run() {
 	wa.r.Use(middleware.RealIP)
 	wa.r.Use(middleware.Recoverer)
 	wa.r.Use(middleware.Logger)
-	wa.r.Use(httprate.LimitByIP(wa.cfg.RateLimit, 1*time.Minute))
+	// wa.r.Use(httprate.LimitByIP(wa.cfg.RateLimit, 1*time.Minute))
 	wa.r.Get("/status", wa.Status)
 	wa.r.Route("/v1", func(r chi.Router) {
 		r.Get("/namespace", wa.AllNS)
 		r.Get("/namespace/{ns}/_backup", wa.NSBackup)
 		r.Post("/namespace", wa.CreateNS)
+		r.Get("/data/{ns}/_list", wa.GetIDData)
 		r.Get("/data/{ns}", wa.GetAllData)
 	})
 
@@ -107,11 +105,11 @@ Main data model in the sqlite store
 each namespace will share the same model
 */
 type DataModel struct {
-	DataID string `db:"data_id"`
-	Data   []byte `db:"data"`
+	DataID string `db:"data_id" json:"dataID"`
+	Data   []byte `db:"data" json:"data"`
 	// GroupBy   sql.NullString `db:"group_by"`
 	// Checksum  sql.NullString `db:"checksum"`
-	CreatedAt string `db:"created_at"`
+	CreatedAt string `db:"created_at" json:"createdAt"`
 }
 
 /* Namespace
@@ -416,4 +414,59 @@ func (wa *WebApp) GetAllData(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(err)
 	}
 	// wa.render.JSON(w, http.StatusOK, ad)
+}
+
+type DataID struct {
+	DataID    string `db:"data_id" json:"dataID"`
+	CreatedAt string `db:"created_at" json:"createdAt"`
+}
+
+type DataIDResponse struct {
+	Rows  []DataID `json:"rows"`
+	Total int      `json:"total"`
+	Next  int      `json:"next"`
+}
+
+func (wa *WebApp) GetIDData(w http.ResponseWriter, r *http.Request) {
+
+	page := 1
+	limit := 50
+
+	err1 := getNumberQueryParam(&page, r, "page")
+	err2 := getNumberQueryParam(&limit, r, "limit")
+	if err1 != nil || err2 != nil {
+		wa.render.JSON(w, http.StatusInternalServerError,
+			map[string]string{"error": "bad param"})
+		return
+
+	}
+
+	offset := limit * (page - 1)
+	ns := chi.URLParam(r, "ns")
+
+	ad := []DataID{}
+	var total int
+	row := wa.dbs[ns].QueryRow("SELECT count(*) FROM data;")
+	_ = row.Scan(&total)
+
+	nextPage := page + 1
+	nextOffset := limit * page
+	if nextOffset >= total {
+		nextPage = -1
+	}
+
+	err := wa.dbs[ns].Select(&ad, "SELECT data_id, created_at FROM data LIMIT ? OFFSET ?;", limit, offset)
+	// err := wa.dbs[ns].Select(&ad, "SELECT * FROM data")
+	if err != nil {
+		fmt.Println("Error geting value ", err)
+		wa.render.JSON(w, http.StatusInternalServerError, map[string]string{"error": "Cannot get data"})
+		return
+
+	}
+
+	// err = wa.render.JSON(w, http.StatusOK, map[string][]Data{"rows": ad})
+	wa.render.JSON(w,
+		http.StatusOK,
+		&DataIDResponse{Rows: ad, Next: nextPage, Total: total},
+	)
 }

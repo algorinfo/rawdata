@@ -22,7 +22,6 @@ func Env(key, defaultValue string) string {
 }
 
 var (
-	rateLimit    = Env("RD_RATE_LIMIT", "1000")
 	listenAddr   = Env("RD_LISTEN_ADDR", ":6667")
 	nsDir        = Env("RD_NS_DIR", "data/")
 	redisAddr    = Env("RD_REDIS_ADDR", "localhost:6379")
@@ -77,12 +76,12 @@ func main() {
 			log.Fatal("Error parsing args")
 		}
 
-		rt, _ := strconv.Atoi(rateLimit)
+		// rt, _ := strconv.Atoi(rateLimit)
 
 		cfg := &volume.Config{
-			Addr:      *listenV,
-			RateLimit: rt,
-			NSDir:     *pnsDir,
+			Addr: *listenV,
+			// RateLimit: rt,
+			NSDir: *pnsDir,
 		}
 
 		// store.UseDB()

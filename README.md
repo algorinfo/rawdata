@@ -64,6 +64,9 @@ var (
 - GET /v1/data/{namespace} 
   - List files as an API, base64 encoded data.
   
+- GET /v1/data/{namespace}/_list 
+  - List only IDs and created fields
+  
 - PUT /{namespace}/{key}
   - 201 if created, anything else = fail
   - If the path already exist, the data will be replaced with the new sent.

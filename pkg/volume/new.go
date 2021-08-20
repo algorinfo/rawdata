@@ -36,10 +36,9 @@ func WithConfig(c *Config) WebOption {
 
 func DefaultConfig() *Config {
 	return &Config{
-		Addr:      "6667",
-		RateLimit: 100,
-		NSDir:     "data/",
-		Stream:    false,
+		Addr:   "6667",
+		NSDir:  "data/",
+		Stream: false,
 	}
 
 }
