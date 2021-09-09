@@ -26,20 +26,35 @@ Bigger files are discourage. Each file is loaded in memory for each request. SQL
 1. A `default` namespace is created when started. 
 2. No auth, [reverse proxy auth](https://docs.nginx.com/nginx/admin-guide/security-controls/configuring-subrequest-authentication/) is easy to be included using nginx. In the future could be included as a auth endpoint in the app.
 3. Every object is compressed and decompressed using zlib.
+4. `-stream` could be used to stream each new object to redis.
 
 Also check the default config values:
 
 ```
 var (
-	rateLimit    = Env("RD_RATE_LIMIT", "1000")
 	listenAddr   = Env("RD_LISTEN_ADDR", ":6667")
 	nsDir        = Env("RD_NS_DIR", "data/")
 	redisAddr    = Env("RD_REDIS_ADDR", "localhost:6379")
 	redisPass    = Env("RD_REDIS_PASS", "")
 	redisDB      = Env("RD_REDIS_DB", "0")
+	redisNS      = Env("RD_REDIS_NS", "RD")
 	streamNo     = Env("RD_STREAM", "false")
 	eStreamLimit = Env("RD_STREAM_LIMIT", "1000")
 )
+```
+
+## Data Schema inside each sqlite store
+
+Data Schema V1:
+
+```
+CREATE TABLE IF NOT EXISTS data (
+	data_id    TEXT PRIMARY KEY,
+    data       BLOB NOT NULL,
+	created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX  IF NOT EXISTS created_ix ON data(created_at);
 ```
 
 
@@ -62,7 +77,7 @@ var (
   - Takes a backup, This action is SYNC, so consider the time of the request for big files ( > 6 GB)
   
 - GET /v1/data/{namespace} 
-  - List files as an API, base64 encoded data.
+  - List files as an API, base64 encoded data and uncompressed.
   
 - GET /v1/data/{namespace}/_list 
   - List only IDs and created fields

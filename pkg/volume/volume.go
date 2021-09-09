@@ -25,12 +25,12 @@ import (
 	"github.com/unrolled/render"
 )
 
+// PutDataRSP main entity to receive raw data
 type PutDataRSP struct {
 	Namespace string `json:"namespace"`
 	Path      string `json:"path"`
-	// HashKey   string  `json:"hashKey"`
-	GroupBy string `json:"groupBy,omitempty"` // to be deprecated
-	Bucket  int32  `json:"bucket,omitempty"`  // to be deprecated
+	GroupBy   string `json:"groupBy,omitempty"` // to be deprecated
+	Bucket    int32  `json:"bucket,omitempty"`  // to be deprecated
 }
 
 type Volume struct {
@@ -47,8 +47,7 @@ func JumpHash(key string, b int) int32 {
 	return bucket
 }
 
-/* Config
-Main config it has a rateLimit
+/*Config Main config it has a rateLimit
 Addr: Full address to listen to ":6667" by default
 RateLimit: how many rq per ip per minute
 NSDir: namespace dir where files will be stored
@@ -99,7 +98,6 @@ func (wa *WebApp) RegisterRoutes() {
 	wa.r.Delete("/{ns}/{data}", wa.DelOneData)
 	wa.r.Get("/{ns}", wa.GetAllData)
 	log.Println("Running web mode on: ", wa.cfg.Addr)
-	wa.Docs()
 	// http.ListenAndServe(wa.cfg.Addr, wa.r)
 }
 
@@ -136,8 +134,7 @@ func (wa *WebApp) Docs() {
 
 }
 
-/* DataModel
-Main data model in the sqlite store
+/*DataModel Main data model in the sqlite store
 each namespace will share the same model
 */
 type DataModel struct {
@@ -148,8 +145,7 @@ type DataModel struct {
 	CreatedAt string `db:"created_at" json:"createdAt"`
 }
 
-/* Namespace
-Right now is a thin wrapper. In the future
+/*Namespace Right now is a thin wrapper. In the future
 it could have other annotations.
 */
 type Namespace struct {
@@ -234,7 +230,7 @@ func (wa *WebApp) InsertData(ctx context.Context, key, ns string, data []byte) e
 	return nil
 }
 
-// InsertData insert data in the store
+// UpsertData insert data in the store
 func (wa *WebApp) UpsertData(ctx context.Context, key, ns string, data []byte) error {
 	// wa.dbs[ns].Exec("INSERT INTO data(data_id, data, )")
 	_, err := wa.dbs[ns].ExecContext(ctx, "INSERT INTO data (data_id, data) VALUES ($1, $2) ON CONFLICT(data_id) DO UPDATE SET data=$2", key, data)
@@ -244,8 +240,7 @@ func (wa *WebApp) UpsertData(ctx context.Context, key, ns string, data []byte) e
 	return nil
 }
 
-// PostData
-// Write data to the sqlite file
+// PostData Write data to the sqlite file
 // If the path already exist will fail
 func (wa *WebApp) PostData(w http.ResponseWriter, r *http.Request) {
 
@@ -290,8 +285,7 @@ func (wa *WebApp) PostData(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// PutData
-// Write data to the sqlite store
+// PutData Write data to the sqlite store
 // If the path already exist, will replace the data.
 // TODO: date will remain as origin.
 func (wa *WebApp) PutData(w http.ResponseWriter, r *http.Request) {
@@ -337,6 +331,7 @@ func (wa *WebApp) PutData(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// GetOneData get one element
 func (wa *WebApp) GetOneData(w http.ResponseWriter, r *http.Request) {
 
 	dataPath := chi.URLParam(r, "data")
@@ -407,6 +402,7 @@ func getNumberQueryParam(value *int, r *http.Request, key string) error {
 	return nil
 }
 
+// GetAllData Returns data with base64 encoding and uncompressed
 func (wa *WebApp) GetAllData(w http.ResponseWriter, r *http.Request) {
 
 	page := 1

@@ -27,9 +27,9 @@ var (
 	redisAddr    = Env("RD_REDIS_ADDR", "localhost:6379")
 	redisPass    = Env("RD_REDIS_PASS", "")
 	redisDB      = Env("RD_REDIS_DB", "0")
+	redisNS      = Env("RD_REDIS_NS", "RD")
 	streamNo     = Env("RD_STREAM", "false")
 	eStreamLimit = Env("RD_STREAM_LIMIT", "1000")
-	streamNS     = Env("RD_STREAM_NS", "RD")
 )
 
 func main() {
@@ -45,9 +45,9 @@ func main() {
 	listen := brainCmd.String("listen", ":6665", "Address to listen")
 	listenV := volumeCmd.String("listen", listenAddr, "Address to listen")
 	pnsDir := volumeCmd.String("namespace", nsDir, "Namespace dir")
-	stream := volumeCmd.Bool("stream", streamB, "Stream data added")
+	stream := volumeCmd.Bool("stream", streamB, "Enable stream data to redis")
 	streamLimit := volumeCmd.String("stream-limit", eStreamLimit, "How many message by stream")
-	streamNSC := volumeCmd.String("stream-ns", streamNS, "Which namespace use for redis")
+	streamNSC := volumeCmd.String("redis-ns", redisNS, "Which key namespace use for redis")
 
 	flag.Parse()
 	if len(os.Args) < 2 {
