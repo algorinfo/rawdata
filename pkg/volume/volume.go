@@ -12,12 +12,14 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/algorinfo/rawstore/pkg/jump"
 	"github.com/algorinfo/rawstore/pkg/store"
 	"github.com/cespare/xxhash"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/docgen"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/unrolled/render"
@@ -71,8 +73,8 @@ type WebApp struct {
 	producer   *store.Producer
 }
 
-// Run main runner
-func (wa *WebApp) Run() {
+// RegisterRoutes Register routes for the router and docs
+func (wa *WebApp) RegisterRoutes() {
 	wa.r.Use(middleware.RequestID)
 	wa.r.Use(middleware.RealIP)
 	wa.r.Use(middleware.Recoverer)
@@ -97,7 +99,41 @@ func (wa *WebApp) Run() {
 	wa.r.Delete("/{ns}/{data}", wa.DelOneData)
 	wa.r.Get("/{ns}", wa.GetAllData)
 	log.Println("Running web mode on: ", wa.cfg.Addr)
+	wa.Docs()
+	// http.ListenAndServe(wa.cfg.Addr, wa.r)
+}
+
+// Run run main worker
+func (wa *WebApp) Run() {
 	http.ListenAndServe(wa.cfg.Addr, wa.r)
+}
+
+/*Docs generation for chi
+Sparsed information from:
+- https://github.com/go-chi/docgen/issues/8
+- https://github.com/go-chi/docgen/blob/master/funcinfo.go
+- https://github.com/go-chi/chi/blob/master/_examples/router-walk/main.go
+
+*/
+func (wa *WebApp) Docs() {
+
+	/*
+		fmt.Println(docgen.MarkdownRoutesDoc(wa.r, docgen.MarkdownOpts{
+			ProjectPath: "github.com/go-chi/chi/v5",
+			Intro:       "Welcome to the chi/_examples/rest generated docs.",
+		}))*/
+
+	walkFunc := func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+		route = strings.Replace(route, "/*/", "/", -1)
+		handlerInfo := docgen.GetFuncInfo(handler)
+		fmt.Printf("%s %s %s\n", method, route, handlerInfo.Comment)
+		return nil
+	}
+
+	if err := chi.Walk(wa.r, walkFunc); err != nil {
+		fmt.Printf("Logging err: %s\n", err.Error())
+	}
+
 }
 
 /* DataModel

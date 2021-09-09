@@ -106,5 +106,7 @@ func New(opts ...WebOption) *WebApp {
 		log.Printf("With stream disabled")
 	}
 
+	wa.RegisterRoutes()
+
 	return wa
 }
