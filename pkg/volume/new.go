@@ -53,7 +53,7 @@ func LoadNS(wa *WebApp) error {
 
 	for _, e := range entries {
 
-		nsName := strings.Split(e.Name(), ".")[0]
+		nsName := strings.Split(e.Name(), ".db")[0]
 		log.Printf("NS Loading for %s", nsName)
 
 		if nsName != "default" {
