@@ -487,7 +487,7 @@ func (wa *WebApp) GetIDData(w http.ResponseWriter, r *http.Request) {
 		nextPage = -1
 	}
 
-	err := wa.dbs[ns].Select(&ad, "SELECT data_id, created_at FROM data LIMIT ? OFFSET ?;", limit, offset)
+	err := wa.dbs[ns].Select(&ad, "SELECT data_id, created_at FROM data ORDER BY created_at desc LIMIT ? OFFSET ?;", limit, offset)
 	// err := wa.dbs[ns].Select(&ad, "SELECT * FROM data")
 	if err != nil {
 		fmt.Println("Error geting value ", err)
