@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -31,6 +32,17 @@ var (
 	streamNo     = Env("RD_STREAM", "false")
 	eStreamLimit = Env("RD_STREAM_LIMIT", "1000")
 )
+
+func createNamespaceDir(path string) {
+	// _path := *path
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		err := os.Mkdir(path, os.ModePerm)
+		if err != nil {
+			log.Println(err)
+		}
+		log.Println("Created ", path)
+	}
+}
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
@@ -83,6 +95,7 @@ func main() {
 			// RateLimit: rt,
 			NSDir: *pnsDir,
 		}
+		createNamespaceDir(cfg.NSDir)
 
 		// store.UseDB()
 
