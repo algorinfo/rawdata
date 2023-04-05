@@ -100,6 +100,31 @@ CREATE INDEX  IF NOT EXISTS created_ix ON data(created_at);
 
 ## Usage
 
+Running the service:
+
+```
+rawdata volume -help
+Usage of volume:
+  -listen string
+    	Address to listen (default ":6667")
+  -namespace string
+    	Namespace dir (default "data/")
+  -redis-ns string
+    	Which key namespace use for redis (default "RD")
+  -stream
+    	Enable stream data to redis
+  -stream-limit string
+    	How many message by stream (default "1000")
+```
+
+```
+rawdata volume
+2023/04/05 17:48:50 new.go:57: NS Loading for default
+2023/04/05 17:48:50 new.go:102: Starting from /home/nuxion/Projects/algorinfo/rawdata
+2023/04/05 17:48:50 new.go:106: With stream disabled
+2023/04/05 17:48:50 volume.go:100: Running web mode on:  :6667
+```
+
 By default `default` namespace is created: 
 
 Create or update a object

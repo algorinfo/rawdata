@@ -8,7 +8,6 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/algorinfo/rawstore/pkg/brain"
 	"github.com/algorinfo/rawstore/pkg/store"
 	"github.com/algorinfo/rawstore/pkg/volume"
 )
@@ -50,11 +49,12 @@ func main() {
 	streamB, _ := strconv.ParseBool(streamNo)
 
 	// commands
-	brainCmd := flag.NewFlagSet("brain", flag.ExitOnError)
+	// brain deprecated for now, it was thought for a sharding strategy.
+	// brainCmd := flag.NewFlagSet("brain", flag.ExitOnError)
 	volumeCmd := flag.NewFlagSet("volume", flag.ExitOnError)
 
 	// Params
-	listen := brainCmd.String("listen", ":6665", "Address to listen")
+	// listen := brainCmd.String("listen", ":6665", "Address to listen")
 	listenV := volumeCmd.String("listen", listenAddr, "Address to listen")
 	pnsDir := volumeCmd.String("namespace", nsDir, "Namespace dir")
 	stream := volumeCmd.Bool("stream", streamB, "Enable stream data to redis")
@@ -67,21 +67,21 @@ func main() {
 	}
 
 	switch os.Args[1] {
-	case "brain":
-		err := brainCmd.Parse(os.Args[2:])
-		redis := store.NewRedis(store.WithDefaults())
-		if err != nil {
-			log.Fatal("Error parsing args")
-		}
-		brain := brain.New(
-			brain.WithAddr(*listen),
-			brain.WithRedis(redis),
-			brain.WithVolumes(
-				[]string{"localhost:888", "localhost:999"},
-			),
-		)
-		brain.Run()
-
+	/* case "brain":
+	err := brainCmd.Parse(os.Args[2:])
+	redis := store.NewRedis(store.WithDefaults())
+	if err != nil {
+		log.Fatal("Error parsing args")
+	}
+	brain := brain.New(
+		brain.WithAddr(*listen),
+		brain.WithRedis(redis),
+		brain.WithVolumes(
+			[]string{"localhost:888", "localhost:999"},
+		),
+	)
+	brain.Run()
+	*/
 	case "volume":
 		err := volumeCmd.Parse(os.Args[2:])
 		if err != nil {
@@ -127,7 +127,7 @@ func main() {
 		}
 
 	default:
-		fmt.Printf("Please use 'web' or 'volume' command")
+		fmt.Printf("Please use the 'volume' command")
 	}
 
 }
