@@ -47,7 +47,8 @@ func JumpHash(key string, b int) int32 {
 	return bucket
 }
 
-/*Config Main config it has a rateLimit
+/*
+Config Main config it has a rateLimit
 Addr: Full address to listen to ":6667" by default
 RateLimit: how many rq per ip per minute
 NSDir: namespace dir where files will be stored
@@ -106,12 +107,12 @@ func (wa *WebApp) Run() {
 	http.ListenAndServe(wa.cfg.Addr, wa.r)
 }
 
-/*Docs generation for chi
+/*
+Docs generation for chi
 Sparsed information from:
 - https://github.com/go-chi/docgen/issues/8
 - https://github.com/go-chi/docgen/blob/master/funcinfo.go
 - https://github.com/go-chi/chi/blob/master/_examples/router-walk/main.go
-
 */
 func (wa *WebApp) Docs() {
 
@@ -134,7 +135,8 @@ func (wa *WebApp) Docs() {
 
 }
 
-/*DataModel Main data model in the sqlite store
+/*
+DataModel Main data model in the sqlite store
 each namespace will share the same model
 */
 type DataModel struct {
@@ -145,7 +147,8 @@ type DataModel struct {
 	CreatedAt string `db:"created_at" json:"createdAt"`
 }
 
-/*Namespace Right now is a thin wrapper. In the future
+/*
+Namespace Right now is a thin wrapper. In the future
 it could have other annotations.
 */
 type Namespace struct {
@@ -163,14 +166,19 @@ type StatusResponse struct {
 
 // NSBackup, endpoint to start a backup in place of a namespace
 func (wa *WebApp) Status(w http.ResponseWriter, r *http.Request) {
-	var stream bool
+	var streamLimit int64
+	stream := false
+	streamLimit = 0
+	redisNs := "default"
 	if wa.producer != nil {
 		stream = true
+		streamLimit = wa.producer.MaxLenApprox
+		redisNs = wa.producer.Namespace
 	}
 	sr := &StatusResponse{
 		Stream:         stream,
-		StreamLimit:    wa.producer.MaxLenApprox,
-		RedisNamespace: wa.producer.Namespace,
+		StreamLimit:    streamLimit,
+		RedisNamespace: redisNs,
 		Namespaces:     wa.namespaces,
 	}
 

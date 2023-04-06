@@ -161,6 +161,14 @@ The problem is the same than before, is not suitable for small data in the long 
 
 4. Google: http://infolab.stanford.edu/~backrub/google.html
 
+## Roadmap
+
+- [ ] Migrate to sqlc
+- [ ] Queue for intensive inserts (using channels)
+- [ ] Worker to read data from redis (?) 
+- [ ] JWT Auth
+- [ ] Automatic backup to Object store
+- [ ] Streaming response of a list of objects from a namespace
 
 ## References
 
