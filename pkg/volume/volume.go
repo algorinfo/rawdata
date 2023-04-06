@@ -14,9 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/algorinfo/rawstore/pkg/jump"
 	"github.com/algorinfo/rawstore/pkg/store"
-	"github.com/cespare/xxhash"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/docgen"
@@ -38,14 +36,14 @@ type Volume struct {
 	JumpNode int32  `json:"jumpNode"`
 }
 
-// JumpHash Gets a string key and  int bucket and returns the
-// bucket number
+/* JumpHash Gets a string key and  int bucket and returns the
+ bucket number
 func JumpHash(key string, b int) int32 {
 	dstPath := xxhash.Sum64String(key)
 	// fmt.Println("XXHASH :", dstPath)
 	bucket := jump.Hash(dstPath, b)
 	return bucket
-}
+}*/
 
 /*
 Config Main config it has a rateLimit

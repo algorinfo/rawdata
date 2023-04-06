@@ -3,7 +3,7 @@ package volume
 var dataSchemaV1 = `
 CREATE TABLE IF NOT EXISTS data (
 	data_id    TEXT PRIMARY KEY,
-    data       BLOB NOT NULL,
+  data       BLOB NOT NULL,
 	created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 

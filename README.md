@@ -169,6 +169,12 @@ The problem is the same than before, is not suitable for small data in the long 
 - [ ] JWT Auth
 - [ ] Automatic backup to Object store
 - [ ] Streaming response of a list of objects from a namespace
+- [ ] Store/Bucket struct which performs all the actions related to the operations on objects
+- [ ] general config sqlite store for the app ?
+- [ ] Optional WAL option for stores
+- [ ] Locks
+- [ ] Notifications through webservices (using simple pub/sub redis) per namespace
+- [ ] Backup should be a go routine, lock namespace for writes when starting, and emit notificatiosn when ending. (http 423 should be returned in POST endpoints) 
 
 ## References
 
