@@ -1,9 +1,11 @@
 
 .EXPORT_ALL_VARIABLES:
-VERSION := $(shell git describe --tags)
+# STANDARD CI/CD
+GIT_TAG := $(shell git describe --tags)
 BUILD := $(shell git rev-parse --short HEAD)
-# PROJECTNAME := $(shell basename "$(PWD)")
-PROJECTNAME := rawdata
+PROJECTNAME := $(shell basename "$(PWD)")
+DOCKERID := nuxion
+VERSION := $(shell cat .version | head -n 1)
 
 LDFLAGS=-ldflags "-X=main.Version=$(VERSION) -X=main.Build=$(BUILD)"
 STDERR := /tmp/.$(PROJECTNAME)-stderr.txt
@@ -16,31 +18,29 @@ run:
 redis:
 	docker-compose exec redis redis-cli
 
-.PHONY: build
-build:
+.PHONY: internal-build
+internal-build:
 	# https://github.com/mattn/go-sqlite3/issues/327
-	CGO_ENABLED=1 go build $(LDFLAGS) -o dist/$(PROJECTNAME)
-	chmod +x dist/$(PROJECTNAME)
+	CGO_ENABLED=1 go build $(LDFLAGS) -o dist/rawdata
+	chmod +x dist/rawdata
 
-.PHONY: tar
-tar:
-	tar cvfz releases/$(PROJECTNAME)-$(VERSION).tgz dist/
+docker-test:
+	docker run --rm -p 6667:6667 ${DOCKERID}/${PROJECTNAME}
 
-.PHONY: docker
-docker: 
-	docker build -t nuxion/${PROJECTNAME} .
+## Standard commands for CI/CD cycle
 
-.PHONY: release
-release: docker
-	docker tag nuxion/${PROJECTNAME} nuxion/${PROJECTNAME}:$(VERSION)
-	docker push nuxion/$(PROJECTNAME):$(VERSION)
+deploy:
+	echo "Not implemented"
 
-.PHONY: migrate
-migrate:
-	migrate -database ${AGW_DB} -path migrations/ up
+build-local:
+	echo "=> Building ${VERSION} of ${PROJECTNAME}"
+	docker build . -t ${DOCKERID}/${PROJECTNAME}
+	docker tag ${DOCKERID}/${PROJECTNAME} ${DOCKERID}/${PROJECTNAME}:${VERSION}
 
-.PHONY: tag
-tag:
-	#poetry version prealese
-	git tag -a $(shell poetry version --short) -m "$(shell git log -1 --pretty=%B | head -n 1)"
+build:
+	echo "Not implemented"
+
+publish:
+	echo "Not implemented"
+
 
