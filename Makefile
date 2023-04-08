@@ -41,6 +41,8 @@ build:
 	echo "Not implemented"
 
 publish:
-	echo "Not implemented"
+	docker push ${DOCKERID}/${PROJECTNAME}
+	docker push ${DOCKERID}/${PROJECTNAME}:${VERSION}
+
 
 
